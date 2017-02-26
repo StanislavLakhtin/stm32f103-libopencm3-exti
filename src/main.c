@@ -2,19 +2,26 @@
 // Created by sl on 26.02.17.
 //
 
-#include <libopencm3/stm32/usart.h>
+
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
-#include <libopencm3/stm32/spi.h>
+#include <libopencm3/stm32/usart.h>
+#include <libopencm3/stm32/exti.h>
 #include <libopencm3/stm32/f1/nvic.h>
 #include <stdio.h>
 #include <errno.h>
+
+// Реализуется простая схема с входом на каждую тактильную кнопку
+// PB0 используется как общий индикатор прерывания
+// PB8 и PB9 -- как входы для кнопок
 
 static void clock_setup(void) {
   rcc_clock_setup_in_hse_8mhz_out_72mhz();
 
   rcc_periph_clock_enable(RCC_GPIOB); // btns
   rcc_periph_clock_enable(RCC_GPIOC); // led
+
+  rcc_periph_clock_enable(RCC_AFIO);
 
   rcc_periph_clock_enable(RCC_USART2); //debug
 }
@@ -31,12 +38,27 @@ int _write(int file, char *ptr, int len) {
   return -1;
 }
 
-static void gpio_setup(void) {
-  gpio_set_mode(GPIOB, GPIO_MODE_INPUT,
-                GPIO_CNF_INPUT_PULL_UPDOWN, GPIO8 | GPIO9);
+void exti0_isr(void)
+{
+  gpio_toggle(GPIOC, GPIO13);
+  exti_reset_request(EXTI0); // нам следует вручную очистить причину вызова прерывания
+}
 
-  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_2_MHZ,
+static void gpio_setup(void) {
+  // BTNS
+  gpio_set_mode(GPIOB, GPIO_MODE_INPUT,
+                GPIO_CNF_INPUT_PULL_UPDOWN, GPIO0 | GPIO8 | GPIO9);
+
+  // BTNS END
+
+  // LED
+  gpio_set_mode(GPIOC, GPIO_MODE_OUTPUT_50_MHZ,
                 GPIO_CNF_OUTPUT_PUSHPULL, GPIO13);
+
+  AFIO_MAPR |= AFIO_MAPR_SWJ_CFG_FULL_SWJ_NO_JNTRST;
+
+  gpio_set(GPIOC, GPIO13);
+  // LED END
 }
 
 static void usart_setup(void) {
@@ -54,15 +76,27 @@ static void usart_setup(void) {
   usart_enable(USART2);
 }
 
+static void button_setup(void) {
+  /* use NVIC_EXTI0_IRQ to control button */
+
+  /* Enable NVIC */
+  nvic_enable_irq(NVIC_EXTI0_IRQ);
+  exti_enable_request(EXTI0);
+  exti_set_trigger(EXTI0, EXTI_TRIGGER_RISING);
+  exti_select_source(EXTI0,GPIOB);
+}
+
 int main(void) {
   clock_setup();
-  usart_setup();
   gpio_setup();
+  button_setup();
+  usart_setup();
 
   wchar_t buffer[50];
+  gpio_set(GPIOC, GPIO13);
   printf("\nUSART test");
 
   while(1) {
-    gpio_toggle(GPIOC, GPIO13);
+
   }
 }
