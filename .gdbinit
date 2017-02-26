@@ -5,6 +5,6 @@ set mem inaccessible-by-default off
 target extended-remote /dev/ttyACM0
 mon swdp_scan
 att 1
-load ./build/stm32-mh-z19.elf
-file ./build/stm32-mh-z19.elf
+load ./build/stm32-f103-exti.elf
+file ./build/stm32-f103-exti.elf
 start
